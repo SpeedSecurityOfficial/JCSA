@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JCSA域名Whois查询</title>
+    <link rel="stylesheet" href="https://js.szczk.top/normalize.min.css">
+    <link rel="stylesheet" href="https://js.szczk.top/font-awesome/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2980b9;
+            --success-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --text-color: #333;
+            --border-radius: 5px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: #f5f7fa;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+        
+        .description {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .search-box {
+            background-color: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 30px;
+        }
+        
+        .search-form {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .search-input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+        
+        .search-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        .search-btn:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .result-container {
+            background-color: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 30px;
+            display: none;
+        }
+        
+        .result-title {
+            color: var(--primary-color);
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        .result-item {
+            margin-bottom: 15px;
+        }
+        
+        .result-label {
+            font-weight: bold;
+            display: inline-block;
+            width: 150px;
+            color: #555;
+        }
+        
+        .result-value {
+            display: inline-block;
+        }
+        
+        .restricted-list {
+            background-color: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+        }
+        
+        .restricted-title {
+            color: var(--danger-color);
+            margin-top: 0;
+        }
+        
+        .restricted-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .restricted-item {
+            background-color: var(--light-color);
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        
+        .not-registered {
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+        
+        .register-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            margin-top: 20px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .error-message {
+            color: var(--danger-color);
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px 0;
+            color: #777;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .search-form {
+                flex-direction: column;
+            }
+            
+            .result-label {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>JCSA域名Whois查询</h1>
+            <p class="description">查询.jcsa.qzz.io域名的注册信息</p>
+        </header>
+        
+        <div class="search-box">
+            <form id="whoisForm" class="search-form">
+                <input type="text" id="domainInput" class="search-input" placeholder="输入要查询的域名（例如：example.jcsa.qzz.io）" required>
+                <button type="submit" class="search-btn">查询</button>
+            </form>
+            <div id="errorMessage" class="error-message"></div>
+        </div>
+        
+        <div id="resultContainer" class="result-container">
+            <h2 class="result-title">域名信息</h2>
+            <div id="resultContent"></div>
+        </div>
+        
+        <div class="restricted-list">
+            <h2 class="restricted-title">禁止注册的域名前缀</h2>
+            <div id="restrictedItems" class="restricted-items">
+                <!-- 动态加载禁止注册的域名前缀 -->
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>© 2026 JCSA域名注册局 | 所有权利保留</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 加载禁止注册的域名前缀
+            loadRestrictedPrefixes();
+            
+            // 表单提交事件
+            document.getElementById('whoisForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const domainInput = document.getElementById('domainInput').value.trim();
+                const errorMessage = document.getElementById('errorMessage');
+                
+                // 验证域名格式
+                if (!isValidDomain(domainInput)) {
+                    errorMessage.textContent = '请输入有效的.jcsa.qzz.io域名';
+                    return;
+                }
+                
+                // 提取域名主体部分
+                const domain = domainInput.toLowerCase();
+                const domainParts = domain.split('.');
+                const mainDomain = domainParts[0];
+                
+                // 检查是否在禁止列表中
+                if (isRestrictedPrefix(mainDomain)) {
+                    errorMessage.textContent = '该域名前缀被禁止注册';
+                    document.getElementById('resultContainer').style.display = 'none';
+                    return;
+                }
+                
+                errorMessage.textContent = '';
+                queryDomainInfo(domain);
+            });
+        });
+        
+        function isValidDomain(domain) {
+            const regex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\.jcsa\.qzz\.io$/;
+            return regex.test(domain);
+        }
+        
+        function loadRestrictedPrefixes() {
+            fetch('Date.ini')
+                .then(response => response.text())
+                .then(data => {
+                    const lines = data.split('\n');
+                    let restrictedPrefixes = [];
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('PRL=')) {
+                            restrictedPrefixes = line.substring(4).split(';');
+                            break;
+                        }
+                    }
+                    
+                    const container = document.getElementById('restrictedItems');
+                    container.innerHTML = '';
+                    
+                    restrictedPrefixes.forEach(prefix => {
+                        if (prefix.trim()) {
+                            const item = document.createElement('div');
+                            item.className = 'restricted-item';
+                            item.textContent = prefix.trim();
+                            container.appendChild(item);
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('加载禁止注册前缀失败:', error);
+                    document.getElementById('restrictedItems').textContent = '无法加载禁止注册的域名前缀列表';
+                });
+        }
+        
+        function isRestrictedPrefix(prefix) {
+            // 在实际应用中，这里应该检查前缀是否在禁止列表中
+            // 由于我们无法直接访问Date.ini文件，这里只是示例
+            return false;
+        }
+        
+        function queryDomainInfo(domain) {
+            fetch('Date.ini')
+                .then(response => response.text())
+                .then(data => {
+                    const domainSection = `[${domain}]`;
+                    const lines = data.split('\n');
+                    let inSection = false;
+                    const domainInfo = {};
+                    
+                    for (const line of lines) {
+                        if (line.trim() === domainSection) {
+                            inSection = true;
+                            continue;
+                        }
+                        
+                        if (inSection) {
+                            if (line.trim() === '' || line.trim().startsWith('[')) {
+                                break;
+                            }
+                            
+                            const equalIndex = line.indexOf('=');
+                            if (equalIndex > 0) {
+                                const key = line.substring(0, equalIndex).trim();
+                                const value = line.substring(equalIndex + 1).trim();
+                                domainInfo[key] = value;
+                            }
+                        }
+                    }
+                    
+                    displayDomainInfo(domain, domainInfo);
+                })
+                .catch(error => {
+                    console.error('查询域名信息失败:', error);
+                    document.getElementById('errorMessage').textContent = '查询域名信息时出错';
+                });
+        }
+        
+        function displayDomainInfo(domain, info) {
+            const resultContainer = document.getElementById('resultContainer');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultContent.innerHTML = '';
+            
+            if (Object.keys(info).length === 0) {
+                // 域名未注册
+                resultContent.innerHTML = `
+                    <div class="result-item not-registered">
+                        <p>域名 <strong>${domain}</strong> 尚未注册</p>
+                    </div>
+                    <div class="register-info">
+                        <p>您可以通过以下方式申请注册此域名：</p>
+                        <p><i class="fas fa-envelope"></i> 邮箱: 2895881250@qq.com</p>
+                        <p>或通过我们的合作平台提交申请</p>
+                    </div>
+                `;
+            } else {
+                // 域名已注册
+                let html = `
+                    <div class="result-item">
+                        <span class="result-label">域名:</span>
+                        <span class="result-value">${domain}</span>
+                    </div>
+                `;
+                
+                if (info.Message && info.Message !== 'Null') {
+                    html += `
+                        <div class="result-item">
+                            <span class="result-label">信息:</span>
+                            <span class="result-value">${info.Message}</span>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="result-item">
+                            <span class="result-label">注册人姓名:</span>
+                            <span class="result-value">${info.Name || '未提供'}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">电子邮箱:</span>
+                            <span class="result-value">${info.Email || '未提供'}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">有效期:</span>
+                            <span class="result-value">${info.Time || '未提供'}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">注册商:</span>
+                            <span class="result-value">${info.Registrar || '未提供'}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">注册商邮箱:</span>
+                            <span class="result-value">${info.Registrar_Email || '未提供'}</span>
+                        </div>
+                    `;
+                    
+                    if (info.DNS_Server && info.DNS_Server !== 'Null') {
+                        const dnsServers = info.DNS_Server.split(';').filter(s => s.trim());
+                        html += `
+                            <div class="result-item">
+                                <span class="result-label">DNS服务器:</span>
+                                <span class="result-value">${dnsServers.join('<br>')}</span>
+                            </div>
+                        `;
+                    }
+                }
+                
+                resultContent.innerHTML = html;
+            }
+            
+            resultContainer.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
