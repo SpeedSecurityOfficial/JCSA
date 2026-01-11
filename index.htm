@@ -223,9 +223,15 @@
     </footer>
 
     <script>
+        // 全局变量存储从Date.ini读取的数据
+        let iniData = {
+            restrictedPrefixes: [],
+            domainRecords: {}
+        };
+
         document.addEventListener('DOMContentLoaded', function() {
-            // 加载禁止注册的域名前缀
-            loadRestrictedPrefixes();
+            // 加载并解析Date.ini文件
+            loadAndParseIniFile();
             
             // 表单提交事件
             document.getElementById('whoisForm').addEventListener('submit', function(e) {
@@ -261,79 +267,85 @@
             return regex.test(domain);
         }
         
-        function loadRestrictedPrefixes() {
+        function loadAndParseIniFile() {
             fetch('Date.ini')
-                .then(response => response.text())
+                .then(response => {
+                    if (!response.ok) throw new Error('无法加载Date.ini文件');
+                    return response.text();
+                })
                 .then(data => {
-                    const lines = data.split('\n');
-                    let restrictedPrefixes = [];
-                    
-                    for (const line of lines) {
-                        if (line.startsWith('PRL=')) {
-                            restrictedPrefixes = line.substring(4).split(';');
-                            break;
-                        }
-                    }
-                    
-                    const container = document.getElementById('restrictedItems');
-                    container.innerHTML = '';
-                    
-                    restrictedPrefixes.forEach(prefix => {
-                        if (prefix.trim()) {
-                            const item = document.createElement('div');
-                            item.className = 'restricted-item';
-                            item.textContent = prefix.trim();
-                            container.appendChild(item);
-                        }
-                    });
+                    parseIniData(data);
+                    displayRestrictedPrefixes();
                 })
                 .catch(error => {
-                    console.error('加载禁止注册前缀失败:', error);
+                    console.error('加载Date.ini失败:', error);
                     document.getElementById('restrictedItems').textContent = '无法加载禁止注册的域名前缀列表';
                 });
         }
         
+        function parseIniData(data) {
+            const lines = data.split('\n');
+            let currentSection = null;
+            
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                
+                // 跳过空行和注释
+                if (trimmedLine === '' || trimmedLine.startsWith(';')) continue;
+                
+                // 处理节头
+                if (trimmedLine.startsWith('[') && trimmedLine.endsWith(']')) {
+                    currentSection = trimmedLine.substring(1, trimmedLine.length - 1);
+                    
+                    // 如果是域名节，初始化记录
+                    if (currentSection.endsWith('.jcsa.qzz.io')) {
+                        iniData.domainRecords[currentSection] = {};
+                    }
+                    continue;
+                }
+                
+                // 处理键值对
+                const equalIndex = trimmedLine.indexOf('=');
+                if (equalIndex > 0) {
+                    const key = trimmedLine.substring(0, equalIndex).trim();
+                    const value = trimmedLine.substring(equalIndex + 1).trim();
+                    
+                    if (currentSection === null) {
+                        // 全局设置
+                        if (key === 'PRL') {
+                            iniData.restrictedPrefixes = value.split(';')
+                                .map(item => item.trim())
+                                .filter(item => item !== '');
+                        }
+                    } else if (currentSection.endsWith('.jcsa.qzz.io')) {
+                        // 域名记录
+                        iniData.domainRecords[currentSection][key] = value;
+                    }
+                }
+            }
+        }
+        
+        function displayRestrictedPrefixes() {
+            const container = document.getElementById('restrictedItems');
+            container.innerHTML = '';
+            
+            iniData.restrictedPrefixes.forEach(prefix => {
+                const item = document.createElement('div');
+                item.className = 'restricted-item';
+                item.textContent = prefix;
+                container.appendChild(item);
+            });
+        }
+        
         function isRestrictedPrefix(prefix) {
-            // 在实际应用中，这里应该检查前缀是否在禁止列表中
-            // 由于我们无法直接访问Date.ini文件，这里只是示例
-            return false;
+            return iniData.restrictedPrefixes.includes(prefix);
         }
         
         function queryDomainInfo(domain) {
-            fetch('Date.ini')
-                .then(response => response.text())
-                .then(data => {
-                    const domainSection = `[${domain}]`;
-                    const lines = data.split('\n');
-                    let inSection = false;
-                    const domainInfo = {};
-                    
-                    for (const line of lines) {
-                        if (line.trim() === domainSection) {
-                            inSection = true;
-                            continue;
-                        }
-                        
-                        if (inSection) {
-                            if (line.trim() === '' || line.trim().startsWith('[')) {
-                                break;
-                            }
-                            
-                            const equalIndex = line.indexOf('=');
-                            if (equalIndex > 0) {
-                                const key = line.substring(0, equalIndex).trim();
-                                const value = line.substring(equalIndex + 1).trim();
-                                domainInfo[key] = value;
-                            }
-                        }
-                    }
-                    
-                    displayDomainInfo(domain, domainInfo);
-                })
-                .catch(error => {
-                    console.error('查询域名信息失败:', error);
-                    document.getElementById('errorMessage').textContent = '查询域名信息时出错';
-                });
+            const domainKey = `[${domain}]`;
+            const domainInfo = iniData.domainRecords[domainKey] || {};
+            
+            displayDomainInfo(domain, domainInfo);
         }
         
         function displayDomainInfo(domain, info) {
