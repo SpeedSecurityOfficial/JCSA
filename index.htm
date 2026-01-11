@@ -12,6 +12,7 @@
             --secondary-color: #2980b9;
             --success-color: #2ecc71;
             --danger-color: #e74c3c;
+            --warning-color: #f39c12;
             --light-color: #ecf0f1;
             --dark-color: #2c3e50;
             --text-color: #333;
@@ -111,8 +112,21 @@
             padding-bottom: 10px;
         }
         
-        .result-item {
+        .result-section {
+            margin-bottom: 25px;
+        }
+        
+        .result-section-title {
+            color: var(--secondary-color);
+            font-size: 18px;
             margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .result-item {
+            margin-bottom: 10px;
+            padding: 5px 0;
         }
         
         .result-label {
@@ -120,10 +134,25 @@
             display: inline-block;
             width: 150px;
             color: #555;
+            vertical-align: top;
         }
         
         .result-value {
             display: inline-block;
+            max-width: calc(100% - 160px);
+        }
+        
+        .value-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .value-list li {
+            margin-bottom: 5px;
+            padding: 3px 5px;
+            background-color: #f8f9fa;
+            border-radius: 3px;
         }
         
         .restricted-list {
@@ -145,10 +174,12 @@
         }
         
         .restricted-item {
-            background-color: var(--light-color);
+            background-color: #f8d7da;
+            color: #721c24;
             padding: 5px 10px;
             border-radius: 3px;
             font-size: 14px;
+            border: 1px solid #f5c6cb;
         }
         
         .not-registered {
@@ -158,10 +189,15 @@
         
         .register-info {
             background-color: #f8f9fa;
-            padding: 15px;
+            padding: 20px;
             border-radius: var(--border-radius);
             margin-top: 20px;
             border-left: 4px solid var(--primary-color);
+        }
+        
+        .register-info h3 {
+            color: var(--primary-color);
+            margin-top: 0;
         }
         
         .error-message {
@@ -178,6 +214,12 @@
             font-size: 14px;
         }
         
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--primary-color);
+        }
+        
         @media (max-width: 768px) {
             .search-form {
                 flex-direction: column;
@@ -186,6 +228,10 @@
             .result-label {
                 width: 100%;
                 margin-bottom: 5px;
+            }
+            
+            .result-value {
+                max-width: 100%;
             }
         }
     </style>
@@ -213,7 +259,7 @@
         <div class="restricted-list">
             <h2 class="restricted-title">禁止注册的域名前缀</h2>
             <div id="restrictedItems" class="restricted-items">
-                <!-- 动态加载禁止注册的域名前缀 -->
+                <div class="loading">加载中...</div>
             </div>
         </div>
     </div>
@@ -241,7 +287,7 @@
                 
                 // 验证域名格式
                 if (!isValidDomain(domainInput)) {
-                    errorMessage.textContent = '请输入有效的.jcsa.qzz.io域名';
+                    errorMessage.textContent = '请输入有效的.jcsa.qzz.io域名（格式如：example.jcsa.qzz.io）';
                     return;
                 }
                 
@@ -270,7 +316,7 @@
         function loadAndParseIniFile() {
             fetch('Date.ini')
                 .then(response => {
-                    if (!response.ok) throw new Error('无法加载Date.ini文件');
+                    if (!response.ok) throw new Error('无法加载Date.ini文件，请确保文件存在');
                     return response.text();
                 })
                 .then(data => {
@@ -279,7 +325,10 @@
                 })
                 .catch(error => {
                     console.error('加载Date.ini失败:', error);
-                    document.getElementById('restrictedItems').textContent = '无法加载禁止注册的域名前缀列表';
+                    document.getElementById('restrictedItems').innerHTML = 
+                        `<div style="color: var(--danger-color); padding: 10px; background: #f8d7da; border-radius: 3px;">
+                            无法加载Date.ini文件: ${error.message}
+                        </div>`;
                 });
         }
         
@@ -287,15 +336,15 @@
             const lines = data.split('\n');
             let currentSection = null;
             
-            for (const line of lines) {
-                const trimmedLine = line.trim();
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
                 
-                // 跳过空行和注释
-                if (trimmedLine === '' || trimmedLine.startsWith(';')) continue;
+                // 跳过空行
+                if (line === '') continue;
                 
                 // 处理节头
-                if (trimmedLine.startsWith('[') && trimmedLine.endsWith(']')) {
-                    currentSection = trimmedLine.substring(1, trimmedLine.length - 1);
+                if (line.startsWith('[') && line.endsWith(']')) {
+                    currentSection = line.substring(1, line.length - 1);
                     
                     // 如果是域名节，初始化记录
                     if (currentSection.endsWith('.jcsa.qzz.io')) {
@@ -305,10 +354,10 @@
                 }
                 
                 // 处理键值对
-                const equalIndex = trimmedLine.indexOf('=');
+                const equalIndex = line.indexOf('=');
                 if (equalIndex > 0) {
-                    const key = trimmedLine.substring(0, equalIndex).trim();
-                    const value = trimmedLine.substring(equalIndex + 1).trim();
+                    const key = line.substring(0, equalIndex).trim();
+                    const value = line.substring(equalIndex + 1).trim();
                     
                     if (currentSection === null) {
                         // 全局设置
@@ -328,6 +377,11 @@
         function displayRestrictedPrefixes() {
             const container = document.getElementById('restrictedItems');
             container.innerHTML = '';
+            
+            if (iniData.restrictedPrefixes.length === 0) {
+                container.innerHTML = '<div style="color: #666;">暂无禁止注册的前缀</div>';
+                return;
+            }
             
             iniData.restrictedPrefixes.forEach(prefix => {
                 const item = document.createElement('div');
@@ -361,57 +415,115 @@
                         <p>域名 <strong>${domain}</strong> 尚未注册</p>
                     </div>
                     <div class="register-info">
+                        <h3><i class="fas fa-info-circle"></i> 申请注册</h3>
                         <p>您可以通过以下方式申请注册此域名：</p>
-                        <p><i class="fas fa-envelope"></i> 邮箱: 2895881250@qq.com</p>
-                        <p>或通过我们的合作平台提交申请</p>
+                        <p><i class="fas fa-envelope"></i> 联系邮箱: 2895881250@qq.com</p>
+                        <p><i class="fas fa-external-link-alt"></i> 或通过我们的合作平台提交申请</p>
                     </div>
                 `;
             } else {
                 // 域名已注册
-                let html = `
-                    <div class="result-item">
-                        <span class="result-label">域名:</span>
-                        <span class="result-value">${domain}</span>
-                    </div>
-                `;
+                let html = '';
                 
+                // 如果Message字段不为Null，则只显示Message
                 if (info.Message && info.Message !== 'Null') {
-                    html += `
-                        <div class="result-item">
-                            <span class="result-label">信息:</span>
-                            <span class="result-value">${info.Message}</span>
+                    html = `
+                        <div class="result-section">
+                            <h3 class="result-section-title">域名状态</h3>
+                            <div class="result-item">
+                                <span class="result-label">域名:</span>
+                                <span class="result-value">${domain}</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">状态信息:</span>
+                                <span class="result-value" style="color: var(--warning-color);">${info.Message}</span>
+                            </div>
                         </div>
                     `;
                 } else {
-                    html += `
-                        <div class="result-item">
-                            <span class="result-label">注册人姓名:</span>
-                            <span class="result-value">${info.Name || '未提供'}</span>
+                    // 显示完整的域名信息
+                    html = `
+                        <div class="result-section">
+                            <h3 class="result-section-title">基本注册信息</h3>
+                            <div class="result-item">
+                                <span class="result-label">域名:</span>
+                                <span class="result-value">${domain}</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">注册人姓名:</span>
+                                <span class="result-value">${info.Name || '未提供'}</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">电子邮箱:</span>
+                                <span class="result-value">${info.Email || '未提供'}</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">有效期:</span>
+                                <span class="result-value">${info.Time || '未提供'}</span>
+                            </div>
                         </div>
-                        <div class="result-item">
-                            <span class="result-label">电子邮箱:</span>
-                            <span class="result-value">${info.Email || '未提供'}</span>
-                        </div>
-                        <div class="result-item">
-                            <span class="result-label">有效期:</span>
-                            <span class="result-value">${info.Time || '未提供'}</span>
-                        </div>
-                        <div class="result-item">
-                            <span class="result-label">注册商:</span>
-                            <span class="result-value">${info.Registrar || '未提供'}</span>
-                        </div>
-                        <div class="result-item">
-                            <span class="result-label">注册商邮箱:</span>
-                            <span class="result-value">${info.Registrar_Email || '未提供'}</span>
-                        </div>
+                        
+                        <div class="result-section">
+                            <h3 class="result-section-title">注册商信息</h3>
+                            <div class="result-item">
+                                <span class="result-label">注册商:</span>
+                                <span class="result-value">${info.Registrar || '未提供'}</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">注册商邮箱:</span>
+                                <span class="result-value">${info.Registrar_Email || '未提供'}</span>
+                            </div>
                     `;
                     
+                    // 注册商设置
+                    if (info.Registrar_Setting && info.Registrar_Setting !== 'Null') {
+                        const registrarSettings = info.Registrar_Setting.split(';').filter(s => s.trim());
+                        html += `
+                            <div class="result-item">
+                                <span class="result-label">注册商设置:</span>
+                                <span class="result-value">
+                                    <ul class="value-list">
+                                        ${registrarSettings.map(setting => `<li>${setting}</li>`).join('')}
+                                    </ul>
+                                </span>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `</div>`;
+                    
+                    // 注册局设置
+                    if (info.Registration_office_setting && info.Registration_office_setting !== 'Null') {
+                        const registrationOfficeSettings = info.Registration_office_setting.split(';').filter(s => s.trim());
+                        html += `
+                            <div class="result-section">
+                                <h3 class="result-section-title">注册局设置</h3>
+                                <div class="result-item">
+                                    <span class="result-label">设置项:</span>
+                                    <span class="result-value">
+                                        <ul class="value-list">
+                                            ${registrationOfficeSettings.map(setting => `<li>${setting}</li>`).join('')}
+                                        </ul>
+                                    </span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    // DNS服务器
                     if (info.DNS_Server && info.DNS_Server !== 'Null') {
                         const dnsServers = info.DNS_Server.split(';').filter(s => s.trim());
                         html += `
-                            <div class="result-item">
-                                <span class="result-label">DNS服务器:</span>
-                                <span class="result-value">${dnsServers.join('<br>')}</span>
+                            <div class="result-section">
+                                <h3 class="result-section-title">DNS服务器</h3>
+                                <div class="result-item">
+                                    <span class="result-label">服务器列表:</span>
+                                    <span class="result-value">
+                                        <ul class="value-list">
+                                            ${dnsServers.map(server => `<li>${server}</li>`).join('')}
+                                        </ul>
+                                    </span>
+                                </div>
                             </div>
                         `;
                     }
