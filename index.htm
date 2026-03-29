@@ -425,7 +425,7 @@
                 if (line.startsWith('[') && line.endsWith(']')) {
                     const sectionName = line.substring(1, line.length - 1).trim().toLowerCase();
                     
-                    if (sectionName.endsWith('.jcsa.qzz.io','.trustmesh.top')) {
+                    if (sectionName.endsWith('.jcsa.qzz.io')) {
                         currentSection = sectionName;
                         iniData.domainRecords[currentSection] = {};
                     } else {
